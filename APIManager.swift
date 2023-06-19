@@ -1,6 +1,5 @@
 //
 //  APIManager.swift
-//  Audition Booking
 //
 //  Created by Apoorv Verma on 13/06/23.
 //

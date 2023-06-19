@@ -1,6 +1,5 @@
 //
 //  URLmanager.swift
-//  Audition Booking
 //
 //  Created by Apoorv Verma on 12/06/23.
 //
