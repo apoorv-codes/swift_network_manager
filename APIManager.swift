@@ -1,5 +1,6 @@
 //
 //  APIManager.swift
+//  Audition Booking
 //
 //  Created by Apoorv Verma on 13/06/23.
 //
@@ -24,7 +25,7 @@ import UIKit
 /// apiManager.requestHttpHeaders.add(value: "application/json", forKey: "Content-Type")
 /// apiManager.httpBodyParameters.add(value: "John Doe", forKey: "name")
 /// apiManager.makeRequest(toURL: url, withHttpMethod: .post) { result in
-///   //Handle the API response
+///     // Handle the API response
 /// }
 /// ```
 
@@ -42,7 +43,7 @@ class APIManager {
     /// Store the HTTP body data
     var httpBody: Data?
     
-//    MARK: Private Functions
+    //    MARK: Private Functions
     
     /// Adds URL query parameters to the given URL.
     ///
@@ -89,7 +90,7 @@ class APIManager {
             let boundary = generateBoundary()
             requestHttpHeaders.add(value: "multipart/form-data; boundary=\(boundary)", forKey: "Content-Type")
             
-            return createMultipartFormData(boundary: boundary)
+            return createDataBody(boundary: boundary)
         } else {
             // Return the raw HTTP body data
             return httpBody
@@ -107,32 +108,31 @@ class APIManager {
     ///
     /// - Parameter boundary: The boundary string for the multipart form data.
     /// - Returns: The created multipart form data.
-    private func createMultipartFormData(boundary: String) -> Data? {
+    private func createDataBody(boundary: String) -> Data {
         let lineBreak = "\r\n"
-        let httpBody = NSMutableData()
+        var body = Data()
+        
         
         for (key, value) in httpBodyParameters.allValues() {
-            httpBody.append("--\(boundary + lineBreak)".data(using: .utf8)!)
-            httpBody.append("Content-Disposition: form-data; name=\"\(key)\"\(lineBreak + lineBreak)".data(using: .utf8)!)
-            httpBody.append("\(value + lineBreak)".data(using: .utf8)!)
+            body.append("--\(boundary + lineBreak)")
+            body.append("Content-Disposition: form-data; name=\"\(key)\"\(lineBreak + lineBreak)")
+            body.append("\(value + lineBreak)")
         }
         
-        if let image = httpBodyParameters.value(forKey: "image"),
-           let imageData = image.data(using: .utf8),
-           let imageBoundaryData = "--\(boundary + lineBreak)".data(using: .utf8),
-           let imageDispositionData = "Content-Disposition: form-data; name=\"image\"; filename=\"image.jpg\"\(lineBreak)".data(using: .utf8),
-           let imageContentTypeData = "Content-Type: image/jpeg\(lineBreak + lineBreak)".data(using: .utf8) {
+        for n in self.httpBodyParameters.images() {
+            body.append("--\(boundary)\r\n")
+            let mimetype = "image/jpg"
             
-            httpBody.append(imageBoundaryData)
-            httpBody.append(imageDispositionData)
-            httpBody.append(imageContentTypeData)
-            httpBody.append(imageData)
-            httpBody.append(lineBreak.data(using: .utf8)!)
-        }
+            let data = (n.values[n.values.startIndex]!).jpegData(compressionQuality: 0.1)
+            body.append("Content-Disposition: form-data; name=\"\(n.keys[n.keys.startIndex])\"; filename=\"\("\(NSDate().timeIntervalSince1970)image.jpg")\"\r\n")
+            body.append("Content-Type: \(mimetype)\r\n\r\n")
+            body.append(data!)
+            body.append("\r\n")
+            
+        } 
+        body.append("--\(boundary)--\(lineBreak)")
         
-        httpBody.append("--\(boundary)--\(lineBreak)".data(using: .utf8)!)
-        
-        return httpBody as Data
+        return body
     }
     
     /// Prepares the URLRequest object with the given URL, HTTP body data, and HTTP method.
@@ -150,6 +150,7 @@ class APIManager {
         // Set the HTTP headers for the request
         for (header, value) in requestHttpHeaders.allValues() {
             request.setValue(value, forHTTPHeaderField: header)
+            print(header,value)
         }
         
         request.httpBody = httpBody
@@ -175,11 +176,12 @@ class APIManager {
                 return
             }
             
+            print(request)
             // Create a URLSession and perform the data task
             let sessionConfiguration = URLSessionConfiguration.default
             let session = URLSession(configuration: sessionConfiguration)
             let task = session.dataTask(with: request) { (data, response, error) in
-
+                
                 completion(Results(withData: data,
                                    response: Response(fromURLResponse: response),
                                    error: error as? Error))
@@ -207,16 +209,6 @@ class APIManager {
         dataTask.resume()
     }
     
-    /// Adds an image to the HTTP body parameters.
-    ///
-    /// - Parameters:
-    ///   - image: The image to be added.
-    ///   - parameterName: The name of the parameter associated with the image.
-    ///   - filename: The filename of the image.
-    func addImageToHttpBody(image: UIImage, forKey key: String) {
-        let imageData = image.jpegData(compressionQuality: 0.8)
-        httpBodyParameters.add(value: imageData?.base64EncodedString() ?? "", forKey: key)
-    }
     
     /// Retrieves data from the specified URL.
     ///
@@ -269,6 +261,7 @@ extension APIManager {
     /// Represents an entity that stores key-value pairs for API-related values.
     struct APIEntity {
         private var values: [String: String] = [:]
+        private var image: [[String: UIImage?]] = []
         
         /// Adds a value for the specified key.
         ///
@@ -277,6 +270,33 @@ extension APIManager {
         ///   - key: The key associated with the value.
         mutating func add(value: String, forKey key: String) {
             values[key] = value
+        }
+        
+        /// Adds a images for the specified key.
+        ///
+        /// - Parameters:
+        ///   - value: The value to add.
+        ///   - key: The key associated with the value.
+        mutating func addImage(value: UIImage?, forKey key: String) {
+            image.append([key:value ?? UIImage()])
+        }
+        
+         /// Adds a file for the specified key.
+        ///
+        /// - Parameters:
+        ///   - value: The value to add.
+        ///   - key: The key associated with the value.
+        mutating func addFile(value: Data, forKey key: String, filename: String, mimeType: String) {
+            let formData = FormData(value: value, filename: filename, mimeType: mimeType)
+            let jsonEncoder = JSONEncoder()
+            
+            if let jsonData = try? jsonEncoder.encode(formData),
+               let jsonString = String(data: jsonData, encoding: .utf8) {
+                values[key] = jsonString
+            } else {
+                // Handle encoding error
+                print("Error encoding FormData to JSON")
+            }
         }
         
         /// Sets Content Type of the request
@@ -302,6 +322,9 @@ extension APIManager {
             return values
         }
         
+        func images() -> [[String: UIImage?]] {
+            return image
+        }
         /// Retrieves the total number of items (key-value pairs) in the entity.
         ///
         /// - Returns: The total number of items.
@@ -335,6 +358,12 @@ extension APIManager {
         }
     }
     
+    struct FormData: Codable {
+        let value: Data
+        let filename: String
+        let mimeType: String
+    }
+    
     /// Represents the results of an API request.
     struct Results {
         /// The data received in the response.
@@ -361,6 +390,15 @@ extension APIManager {
         /// - Parameter error: The error encountered during the request.
         init(withError error: Error) {
             self.error = error
+        }
+    }
+}
+
+// Data Extension
+extension Data {
+    mutating func append(_ string: String) {
+        if let data = string.data(using: .utf8) {
+            append(data)
         }
     }
 }
