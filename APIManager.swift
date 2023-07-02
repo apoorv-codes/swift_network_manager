@@ -16,7 +16,7 @@ import UIKit
 /// - Create an instance of `APIManager`.
 /// - Set the request HTTP headers, URL query parameters, and HTTP body parameters as needed.
 /// - Make an API request using the `makeRequest` method, providing the target URL, HTTP method, and completion handler for processing the results.
-/// - Optionally, use the `fetchImage` method to fetch an image from a URL, or the `addImageToHttpBody` method to add an image to the HTTP body parameters.
+/// - Optionally, use the `fetchImage` method to fetch an image from a URL, or the `addImage` method to add an image to the HTTP body parameters.
 /// - To retrieve data from a URL, use the `getData` method.
 ///
 /// Example:
